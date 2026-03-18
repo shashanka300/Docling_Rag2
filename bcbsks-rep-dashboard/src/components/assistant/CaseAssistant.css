@@ -1,0 +1,127 @@
+.case-assistant {
+    padding: 1rem;
+    background-color: var(--gray-50);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gray-200);
+}
+
+.assistant-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.assistant-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--primary-blue);
+    color: var(--white);
+    border-radius: var(--radius-md);
+}
+
+.assistant-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--gray-900);
+    margin: 0;
+}
+
+.assistant-subtitle {
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: var(--gray-900);
+    margin-bottom: 1rem;
+}
+
+.assistant-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.assistant-tab {
+    padding: 0.5rem 1rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--gray-600);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.assistant-tab:hover {
+    color: var(--gray-900);
+}
+
+.assistant-tab.active {
+    color: var(--primary-blue);
+    border-bottom-color: var(--primary-blue);
+}
+
+.assistant-content {
+    margin-bottom: 1rem;
+}
+
+.summary-content p {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    color: var(--gray-700);
+}
+
+.knowledge-content h4,
+.experts-content h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--gray-900);
+    margin-bottom: 0.5rem;
+}
+
+.knowledge-list,
+.experts-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.knowledge-list li {
+    margin-bottom: 0.5rem;
+}
+
+.knowledge-link {
+    color: var(--primary-blue);
+    font-size: 0.875rem;
+}
+
+.knowledge-link:hover {
+    text-decoration: underline;
+}
+
+.expert-item {
+    padding: 0.5rem;
+    background-color: var(--white);
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--gray-700);
+}
+
+.external-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--primary-blue);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.external-link:hover {
+    text-decoration: underline;
+}
+
+/* Made with Bob */
