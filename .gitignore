@@ -6,6 +6,12 @@
 # Data folder - contains sensitive documents
 data/
 
+# Documentation folder
+docs/
+
+# Qdrant vector store
+.qdrant_store/
+
 # Python
 __pycache__/
 *.py[cod]
