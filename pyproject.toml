@@ -1,0 +1,35 @@
+[project]
+name = "docling-deep-agent"
+version = "0.1.0"
+description = "Agentic RAG with Docling v2, Deep Agents, and Docker sandbox"
+requires-python = ">=3.11"
+dependencies = [
+    "deepagents>=0.1.0",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langgraph>=0.2.0",
+    "langchain-ollama>=0.2.0",
+    "docling>=2.0.0",
+    "docling-core[chunking]>=2.0.0",
+    "qdrant-client>=1.10.0",
+    "langchain-qdrant>=0.2.0",
+    "langchain-huggingface>=0.1.0",
+    "sentence-transformers>=3.0.0",
+    "docker>=7.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "ipython>=8.0.0",
+    "rich>=13.0.0",
+]
+
+# ↓ This tells UV your code is NOT in src/ layout — just flat in the subfolder
+[tool.hatch.build.targets.wheel]
+packages = ["docling_deep_agent"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

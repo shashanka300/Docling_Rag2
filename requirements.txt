@@ -1,0 +1,27 @@
+# ── Core agent framework ──────────────────────────────────────────────────
+deepagents>=0.1.0
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langgraph>=0.2.0
+
+# ── LLM backend ───────────────────────────────────────────────────────────
+langchain-ollama>=0.2.0          # MiniMax-M2.7 via Ollama
+
+# ── Docling v2 ────────────────────────────────────────────────────────────
+docling>=2.0.0
+docling-core[chunking]>=2.0.0   # HybridChunker + HierarchicalChunker
+
+# ── Vector store ──────────────────────────────────────────────────────────
+qdrant-client>=1.10.0
+langchain-qdrant>=0.2.0
+
+# ── Embeddings ────────────────────────────────────────────────────────────
+langchain-huggingface>=0.1.0
+sentence-transformers>=3.0.0
+
+# ── Docker sandbox ────────────────────────────────────────────────────────
+docker>=7.0.0                    # docker-py SDK
+
+# ── Utilities ─────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
