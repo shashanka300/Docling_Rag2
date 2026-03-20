@@ -51,8 +51,39 @@ User Query
 ### Prerequisites
 
 - **Python 3.11+**
-- **Docker Desktop** (for code execution sandbox)
+- **Docker** (Desktop or Colima) — for code execution sandbox
 - **Ollama** with MiniMax-M2.7 model
+
+### Docker Setup (macOS)
+
+You can run Docker on macOS using either Docker Desktop or the lighter-weight **Colima** (no GUI, no license fees).
+
+#### Option A: Docker Desktop
+Download and install from [docker.com](https://www.docker.com/products/docker-desktop/), then start it.
+
+#### Option B: Colima (recommended for macOS)
+
+```bash
+# Install via Homebrew
+brew install colima docker docker-compose
+
+# Start Colima with resource limits (adjust to your machine)
+colima start --cpu 4 --memory 8 --disk 50
+
+# Verify Docker is working
+docker info
+docker run --rm hello-world
+```
+
+**Colima common commands:**
+```bash
+colima start          # Start the VM (run after reboot)
+colima stop           # Stop the VM
+colima status         # Check if running
+colima start --edit   # Edit CPU/memory/disk config
+```
+
+> **Note:** The code-agent sandbox requires Docker to be running before you start the agent. With Colima, run `colima start` first. You can add it to your shell profile to auto-start: `colima start --foreground &`.
 
 ### Installation
 
