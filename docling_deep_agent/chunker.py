@@ -149,8 +149,6 @@ def chunk_document(
     scored: list[ScoredChunk] = []
 
     for raw in raw_chunks:
-        # contextualize() prepends heading path to the chunk text.
-        # This is the string that gets embedded — not raw.text alone.
         text = chunker.contextualize(raw)
 
         if not text.strip():
@@ -243,5 +241,3 @@ def chunk_document(
 
     logger.info("Final chunk count: %d", len(scored))
     return scored
-
-

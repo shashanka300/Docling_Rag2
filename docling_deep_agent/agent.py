@@ -95,7 +95,6 @@ def run_ingestion(data_dir: Path) -> int:
         print(f"     Supported: {', '.join(sorted(supported))}")
         sys.exit(1)
 
-    # Check which files are already indexed in Qdrant (persisted on disk)
     already_indexed = get_indexed_sources()
     new_files = [f for f in files if str(f) not in already_indexed]
     skipped   = [f for f in files if str(f) in already_indexed]
@@ -121,9 +120,8 @@ def run_ingestion(data_dir: Path) -> int:
     total_chunks = 0
 
     for i, path in enumerate(new_files, 1):
-        print(f"\n  [{i}/{len(files)}] {path.name}")
+        print(f"\n  [{i}/{len(new_files)}] {path.name}")
 
-        # ── Parse ────────────────────────────────────────────────────────
         try:
             cfg = _pick_enrichment(path)
             print(f"    ▶ Parsing  (enrichment: {_describe_cfg(cfg)})")
@@ -136,7 +134,6 @@ def run_ingestion(data_dir: Path) -> int:
         print(f"    ✓ Parsed   → {len(doc.texts)} texts, "
               f"{len(doc.tables)} tables, {len(doc.pictures)} pictures")
 
-        # ── Chunk ────────────────────────────────────────────────────────
         try:
             chunks = chunk_document(
                 doc,
@@ -155,14 +152,12 @@ def run_ingestion(data_dir: Path) -> int:
             print(f"    ⚠  No chunks produced (all filtered by confidence threshold)")
             continue
 
-        # Breakdown by content type — shows readers what metadata was captured
         type_counts: dict[str, int] = {}
         for c in chunks:
             type_counts[c.content_type] = type_counts.get(c.content_type, 0) + 1
         breakdown = "  |  ".join(f"{k}: {v}" for k, v in sorted(type_counts.items()))
         print(f"    ✓ Chunked  → {len(chunks)} chunks  [{breakdown}]")
 
-        # ── Embed + upsert ────────────────────────────────────────────────
         try:
             print(f"    ▶ Embedding + upserting to Qdrant …")
             count = upsert_chunks(chunks)

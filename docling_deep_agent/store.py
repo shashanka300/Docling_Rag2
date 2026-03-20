@@ -26,6 +26,8 @@ Metadata stored per chunk (from Docling enrichment)
 from __future__ import annotations
 
 import logging
+import os as _os
+import uuid
 
 from langchain_core.tools import tool
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -34,6 +36,7 @@ from qdrant_client.models import (
     Distance,
     FieldCondition,
     Filter,
+    MatchText,
     MatchValue,
     PointStruct,
     VectorParams,
@@ -66,7 +69,6 @@ _reranker: CrossEncoder | None = None
 
 # Path to local Qdrant store — persists across process restarts.
 # Change this or set QDRANT_PATH env var to relocate the store.
-import os as _os
 QDRANT_PATH = _os.environ.get("QDRANT_PATH", ".qdrant_store")
 
 
@@ -122,7 +124,6 @@ def upsert_chunks(chunks: list[ScoredChunk]) -> int:
     if not chunks:
         return 0
 
-    import uuid
     embedder = _get_embeddings()
     client   = _get_client()
 
@@ -188,7 +189,6 @@ def retrieve(
             FieldCondition(key="content_type", match=MatchValue(value=content_type))
         )
     if source_filter:
-        from qdrant_client.models import MatchText
         conditions.append(
             FieldCondition(key="source", match=MatchText(text=source_filter))
         )

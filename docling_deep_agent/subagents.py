@@ -18,7 +18,7 @@ from deepagents import create_deep_agent, CompiledSubAgent
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 
-from store import retrieve_chunks
+from store import retrieve_chunks, search
 from sandbox import DockerSandbox, make_execute_tool, make_upload_tool
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,6 @@ def get_llm() -> ChatOllama:
     )
 
 
-
 @tool
 def retrieve_table_chunks(query: str, top_k: int = 4) -> str:
     """
@@ -43,7 +42,6 @@ def retrieve_table_chunks(query: str, top_k: int = 4) -> str:
     query : Natural language question about data, numbers, or comparisons.
     top_k : Number of results (default 4).
     """
-    from store import search
     chunks = search(query=query, top_k=top_k, content_type="table")
 
     if not chunks:
@@ -101,7 +99,6 @@ def retrieve_picture_chunks(query: str, top_k: int = 4) -> str:
     query : Question about a chart, diagram, figure, or visual element.
     top_k : Number of results.
     """
-    from store import search
     chunks = search(query=query, top_k=top_k, content_type="picture")
 
     if not chunks:
@@ -162,7 +159,6 @@ def retrieve_code_chunks(query: str, top_k: int = 4) -> str:
     query : Question about code, an algorithm, or a formula.
     top_k : Number of results.
     """
-    from store import search
     code_chunks   = search(query=query, top_k=top_k // 2, content_type="code")
     formula_chunks = search(query=query, top_k=top_k // 2, content_type="formula")
     all_chunks = code_chunks + formula_chunks

@@ -50,12 +50,10 @@ from __future__ import annotations
 
 import logging
 import tarfile
-import tempfile
 import textwrap
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
 
 import docker
 from docker.models.containers import Container

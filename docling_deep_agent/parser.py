@@ -335,5 +335,3 @@ def parse(
         len(doc.pictures),
     )
     return doc
-
-
