@@ -394,18 +394,14 @@ class DockerSandbox:
         self,
         code: str,
         filename: str = "script.py",
-        timeout_seconds: int = 30,
     ) -> ExecuteResult:
         """
-        Seed a code string as a file and execute it. Convenience wrapper
-        used by the code sub-agent for quick one-shot evaluations.
+        Seed a code string as a file and execute it.
 
         Parameters
         ----------
-        code     : Python source code string.
-        filename : Name to save the file as under /workspace/.
-        timeout  : Not enforced at SDK level — use Docker's exec timeout
-                   if you need hard limits (future extension point).
+        code     : Python source code string
+        filename : Name to save the file as under /workspace/
         """
         container_path = f"/workspace/{filename}"
         self.upload_files([(container_path, code.encode())])

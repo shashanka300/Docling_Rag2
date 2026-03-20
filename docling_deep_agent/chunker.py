@@ -3,17 +3,13 @@ chunker.py
 ─────────────────────────────────────────────────────────────────────────────
 Chunking layer: DoclingDocument → scored, embeddable chunks.
 
-Two new things vs v1 blog
-──────────────────────────
-1. Confidence grader  — filters out chunks whose Docling extraction score
-   falls below a threshold before they ever reach the vector store.
-2. Chunk scorer       — LLM-based relevance scoring used by the self-reflect
-   loop: if the mean relevance score across retrieved chunks is < 3/5 the
-   orchestrator re-queries with a refined question.
+Filters out chunks whose Docling extraction score falls below a threshold
+before they reach the vector store.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from typing import Iterator
@@ -223,8 +219,6 @@ def chunk_document(
             )
             continue
 
-        # ── Stable chunk ID ───────────────────────────────────────────────
-        import hashlib
         chunk_id = hashlib.md5(
             f"{source_path}:{text[:200]}".encode()
         ).hexdigest()
@@ -251,82 +245,3 @@ def chunk_document(
     return scored
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Relevance grader
-# Used by the self-reflect loop in the orchestrator.
-# ─────────────────────────────────────────────────────────────────────────────
-
-def grade_chunks(
-    question: str,
-    chunks: list[ScoredChunk],
-    llm,
-    threshold: float = 3.0,
-) -> tuple[list[ScoredChunk], float]:
-    """
-    Grade retrieved chunks for relevance to a question using the LLM.
-
-    Each chunk gets a score 1–5. Chunks below (threshold - 1) are dropped.
-    The orchestrator calls this after Qdrant retrieval; if the mean score is
-    below `threshold`, it re-queries with a refined question.
-
-    Parameters
-    ----------
-    question  : The user's question (or decomposed sub-question).
-    chunks    : Retrieved ScoredChunks from Qdrant.
-    llm       : Any LangChain BaseChatModel (the orchestrator's LLM).
-    threshold : Mean score below which the orchestrator should re-query.
-
-    Returns
-    -------
-    (kept_chunks, mean_score)
-        kept_chunks : Chunks that passed the per-chunk threshold.
-        mean_score  : Mean relevance score across all input chunks.
-    """
-    if not chunks:
-        return [], 0.0
-
-    from langchain_core.messages import HumanMessage
-
-    GRADE_PROMPT = (
-        "Score how relevant this document chunk is for answering the question.\n\n"
-        "Question: {question}\n\n"
-        "Chunk:\n{chunk}\n\n"
-        "Reply with ONLY a single integer 1-5.\n"
-        "5 = directly answers the question\n"
-        "4 = highly relevant context\n"
-        "3 = partially relevant\n"
-        "2 = tangentially related\n"
-        "1 = not relevant\n"
-        "Score:"
-    )
-
-    scores: list[float] = []
-    kept: list[ScoredChunk] = []
-
-    for chunk in chunks:
-        prompt = GRADE_PROMPT.format(
-            question=question,
-            chunk=chunk.text[:600],   # Cap to avoid wasting tokens
-        )
-        try:
-            response = llm.invoke([HumanMessage(content=prompt)])
-            score_str = response.content.strip().split()[0]
-            score = float(score_str)
-            score = max(1.0, min(5.0, score))
-        except Exception as e:
-            logger.warning("Grading failed for chunk: %s", e)
-            score = 3.0   # Neutral fallback — don't drop on grade failure
-
-        scores.append(score)
-
-        if score >= (threshold - 1):
-            kept.append(chunk)
-        else:
-            logger.debug("Dropped chunk (score=%.1f): %s…", score, chunk.text[:60])
-
-    mean = sum(scores) / len(scores) if scores else 0.0
-    logger.info(
-        "Chunk grading: %d/%d kept, mean_score=%.2f (threshold=%.1f)",
-        len(kept), len(chunks), mean, threshold,
-    )
-    return kept, mean

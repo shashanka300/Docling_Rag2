@@ -64,15 +64,27 @@ _embeddings: HuggingFaceEmbeddings | None = None
 _reranker: CrossEncoder | None = None
 
 
+# Path to local Qdrant store — persists across process restarts.
+# Change this or set QDRANT_PATH env var to relocate the store.
+import os as _os
+QDRANT_PATH = _os.environ.get("QDRANT_PATH", ".qdrant_store")
+
+
 def _get_client() -> QdrantClient:
     global _client
     if _client is None:
-        _client = QdrantClient(":memory:")
-        _client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
-        )
-        logger.info("Qdrant in-memory collection '%s' created", COLLECTION_NAME)
+        _client = QdrantClient(path=QDRANT_PATH)
+        # create_collection is idempotent when collection already exists —
+        # guard with a check so restarts don't raise CollectionAlreadyExists.
+        existing = [c.name for c in _client.get_collections().collections]
+        if COLLECTION_NAME not in existing:
+            _client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
+            )
+            logger.info("Qdrant collection '%s' created at '%s'", COLLECTION_NAME, QDRANT_PATH)
+        else:
+            logger.info("Qdrant collection '%s' loaded from '%s'", COLLECTION_NAME, QDRANT_PATH)
     return _client
 
 
@@ -183,13 +195,24 @@ def retrieve(
 
     qdrant_filter = Filter(must=conditions) if conditions else None
 
-    hits = client.search(
-        collection_name=COLLECTION_NAME,
-        query_vector=query_vec,
-        limit=top_k * RETRIEVAL_FACTOR,
-        query_filter=qdrant_filter,
-        with_payload=True,
-    )
+    # qdrant-client >= 1.9 replaced .search() with .query_points()
+    try:
+        response = client.query_points(
+            collection_name=COLLECTION_NAME,
+            query=query_vec,
+            limit=top_k * RETRIEVAL_FACTOR,
+            query_filter=qdrant_filter,
+            with_payload=True,
+        )
+        hits = response.points
+    except AttributeError:
+        hits = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vec,
+            limit=top_k * RETRIEVAL_FACTOR,
+            query_filter=qdrant_filter,
+            with_payload=True,
+        )
 
     if not hits:
         return []
@@ -226,17 +249,59 @@ def retrieve(
     )
     return top
 
+# Alias for backward compatibility with subagents
+search = retrieve
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stats
 # ─────────────────────────────────────────────────────────────────────────────
 
+def get_indexed_sources() -> set[str]:
+    """
+    Return the set of source file paths already indexed in Qdrant.
+    Used by the ingestion pipeline to skip files that are already present.
+
+    Scrolls through all points and collects unique 'source' payload values.
+    Fast enough for typical RAG datasets (< 100k chunks).
+    """
+    client = _get_client()
+    indexed: set[str] = set()
+    offset = None
+
+    while True:
+        result, next_offset = client.scroll(
+            collection_name=COLLECTION_NAME,
+            limit=256,
+            offset=offset,
+            with_payload=["source"],
+            with_vectors=False,
+        )
+        for point in result:
+            src = (point.payload or {}).get("source", "")
+            if src:
+                indexed.add(src)
+        if next_offset is None:
+            break
+        offset = next_offset
+
+    return indexed
+
+
 def get_collection_stats() -> dict:
     client = _get_client()
     info   = client.get_collection(COLLECTION_NAME)
+    # points_count is the stable field across all qdrant-client versions.
+    # vectors_count was removed in qdrant-client >= 1.9.x
+    points = getattr(info, "points_count", None)
+    if points is None:
+        # Fallback: count via scroll
+        try:
+            points = client.count(collection_name=COLLECTION_NAME).count
+        except Exception:
+            points = 0
     return {
-        "total_points":    info.points_count,
-        "vectors_count":   info.vectors_count,
+        "total_points":    points,
         "collection":      COLLECTION_NAME,
         "embedding_model": EMBEDDING_MODEL,
         "reranker_model":  RERANKER_MODEL,

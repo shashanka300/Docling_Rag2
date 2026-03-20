@@ -48,7 +48,7 @@ from langgraph.store.memory import InMemoryStore
 
 from parser import parse, EnrichmentConfig, EXTENSION_MAP
 from chunker import chunk_document, ChunkerConfig
-from store import upsert_chunks, retrieve_chunks, get_store_stats, get_collection_stats
+from store import upsert_chunks, retrieve_chunks, get_store_stats, get_collection_stats, get_indexed_sources
 from subagents import build_all_subagents
 
 logging.basicConfig(
@@ -91,21 +91,36 @@ def run_ingestion(data_dir: Path) -> int:
     ]
 
     if not files:
-        print(f"\n  ✗  No supported files found in '{data_dir}'.")
+        print(f"\n  \u2717  No supported files found in '{data_dir}'.")
         print(f"     Supported: {', '.join(sorted(supported))}")
         sys.exit(1)
 
-    print(f"\n  Found {len(files)} file(s) in '{data_dir}':\n")
-    for f in files:
-        print(f"    • {f.name}")
+    # Check which files are already indexed in Qdrant (persisted on disk)
+    already_indexed = get_indexed_sources()
+    new_files = [f for f in files if str(f) not in already_indexed]
+    skipped   = [f for f in files if str(f) in already_indexed]
 
-    print("\n" + "─" * 60)
-    print("  PHASE 1 — Ingestion pipeline")
-    print("─" * 60)
+    print(f"\n  Found {len(files)} file(s) in '{data_dir}':")
+    for f in files:
+        tag = "  [already indexed]" if str(f) in already_indexed else ""
+        print(f"    \u2022 {f.name}{tag}")
+
+    if skipped:
+        print(f"\n  Skipping {len(skipped)} already-indexed file(s).")
+
+    if not new_files:
+        stats = get_collection_stats()
+        print(f"\n  \u2713  All files already indexed \u2014 {stats['total_points']} chunks in Qdrant.")
+        print(f"     Delete '.qdrant_store/' to force re-ingestion.\n")
+        return stats["total_points"]
+
+    print("\n" + "\u2500" * 60)
+    print(f"  PHASE 1 \u2014 Ingesting {len(new_files)} new file(s)")
+    print("\u2500" * 60)
 
     total_chunks = 0
 
-    for i, path in enumerate(files, 1):
+    for i, path in enumerate(new_files, 1):
         print(f"\n  [{i}/{len(files)}] {path.name}")
 
         # ── Parse ────────────────────────────────────────────────────────

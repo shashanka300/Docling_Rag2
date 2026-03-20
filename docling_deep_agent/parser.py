@@ -297,7 +297,6 @@ def parse(
     cfg = cfg or EnrichmentConfig.minimal()
     source = Path(source) if not str(source).startswith("http") else source
 
-    # Detect format from extension
     if isinstance(source, Path):
         ext = source.suffix.lower()
         if ext not in EXTENSION_MAP:
@@ -305,11 +304,8 @@ def parse(
                 f"Unsupported file extension '{ext}'. "
                 f"Supported: {sorted(EXTENSION_MAP.keys())}"
             )
-        fmt = EXTENSION_MAP[ext]
-        logger.info("Parsing %s as %s", source.name, fmt.name)
+        logger.info("Parsing %s", source.name)
     else:
-        # URL — Docling auto-detects format from Content-Type / extension
-        fmt = None
         logger.info("Parsing URL: %s", source)
 
     converter = _build_converter(cfg)
@@ -341,73 +337,3 @@ def parse(
     return doc
 
 
-def parse_batch(
-    sources: list[Union[str, Path]],
-    cfg: EnrichmentConfig | None = None,
-) -> list[DoclingDocument]:
-    """
-    Convert a list of files/URLs in a single converter pass.
-    More efficient than calling parse() in a loop because Docling
-    reuses loaded models across all documents.
-
-    Parameters
-    ----------
-    sources : list of file paths or URLs
-    cfg     : shared EnrichmentConfig for the whole batch
-
-    Returns
-    -------
-    list of DoclingDocument, same order as input
-    """
-    cfg = cfg or EnrichmentConfig.minimal()
-    converter = _build_converter(cfg)
-
-    results = converter.convert_all([str(s) for s in sources])
-    docs: list[DoclingDocument] = []
-
-    for res in results:
-        if res.status.name not in ("SUCCESS", "PARTIAL_SUCCESS"):
-            logger.warning("Skipping '%s': status=%s", res.input.file, res.status.name)
-            continue
-        docs.append(res.document)
-
-    logger.info("Batch parsed %d/%d documents", len(docs), len(sources))
-    return docs
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Confidence score helper
-# ─────────────────────────────────────────────────────────────────────────────
-
-def get_confidence_stats(doc: DoclingDocument) -> dict:
-    """
-    Return a summary of extraction confidence scores for a DoclingDocument.
-
-    Docling v2 attaches confidence values to layout predictions.
-    The chunker uses these to filter out low-quality items before embedding.
-
-    Returns a dict with keys: mean, min, low_count, total.
-    'low_count' = number of items with confidence < 0.5.
-    """
-    scores: list[float] = []
-
-    for item in doc.texts:
-        conf = getattr(item, "confidence", None)
-        if conf is not None:
-            scores.append(float(conf))
-
-    for item in doc.tables:
-        conf = getattr(item, "confidence", None)
-        if conf is not None:
-            scores.append(float(conf))
-
-    if not scores:
-        return {"mean": 1.0, "min": 1.0, "low_count": 0, "total": 0}
-
-    low = sum(1 for s in scores if s < 0.5)
-    return {
-        "mean": sum(scores) / len(scores),
-        "min": min(scores),
-        "low_count": low,
-        "total": len(scores),
-    }

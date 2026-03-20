@@ -1,25 +1,13 @@
 """
 subagents.py
 ─────────────────────────────────────────────────────────────────────────────
-Defines the four specialist sub-agents registered with the Deep Agents
-orchestrator.
+Specialist sub-agents for the Deep Agents orchestrator.
 
 Sub-agent roster
 ─────────────────
-1. ingest_agent   — Converts any file via Docling MCP, chunks, upserts to Qdrant.
-2. table_agent    — Structured data specialist: tables, CSV, XLSX.
-3. image_agent    — VLM caption + picture classification specialist.
-4. code_agent     — Code / formula specialist running in a Docker sandbox.
-
-Why sub-agents and not a single agent
-───────────────────────────────────────
-Each sub-agent runs in context isolation. The orchestrator calls them via
-task() and gets back a concise summary — not the raw tool output stream.
-This keeps the orchestrator's context window clean and lets each specialist
-be tuned independently (different system prompts, tools, model overrides).
-
-Code agent uses CompiledSubAgent (not dict-based) because it needs its own
-sandbox backend — the dict spec doesn't expose a backend parameter.
+1. table_agent — Structured data specialist: tables, CSV, XLSX
+2. image_agent — VLM caption + picture classification specialist
+3. code_agent  — Code / formula specialist running in a Docker sandbox
 """
 
 from __future__ import annotations
@@ -30,18 +18,11 @@ from deepagents import create_deep_agent, CompiledSubAgent
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 
-from parser import parse, EnrichmentConfig
-from chunker import chunk_document, ChunkerConfig, grade_chunks
-from store import upsert_chunks, retrieve_chunks, get_store_stats
+from store import retrieve_chunks
 from sandbox import DockerSandbox, make_execute_tool, make_upload_tool
 
 logger = logging.getLogger(__name__)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Shared LLM
-# MiniMax-M2.7 via Ollama — all sub-agents inherit this unless overridden.
-# ─────────────────────────────────────────────────────────────────────────────
 
 def get_llm() -> ChatOllama:
     return ChatOllama(
@@ -51,121 +32,6 @@ def get_llm() -> ChatOllama:
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Ingest tools
-# ─────────────────────────────────────────────────────────────────────────────
-
-@tool
-def ingest_document(file_path: str) -> str:
-    """
-    Parse any supported document and store it in the vector knowledge base.
-
-    Supported formats: PDF, DOCX, PPTX, XLSX, CSV, XML, XBRL, PNG, JPG,
-    JPEG, TIFF, HTML.
-
-    Call this whenever a user provides a file path or URL and wants to ask
-    questions about the document.
-
-    Parameters
-    ----------
-    file_path : Absolute or relative path to the document, or a URL.
-
-    Returns
-    -------
-    Summary: how many chunks were ingested and what was detected.
-    """
-    try:
-        doc = parse(file_path, EnrichmentConfig.minimal())
-    except Exception as exc:
-        return f"Parsing failed for '{file_path}': {exc}"
-
-    chunks = chunk_document(
-        doc,
-        cfg=ChunkerConfig(min_confidence=0.5),
-        source_path=file_path,
-    )
-
-    if not chunks:
-        return f"Document parsed but produced no usable chunks: '{file_path}'"
-
-    count = upsert_chunks(chunks)
-
-    # Breakdown by content type for the orchestrator summary
-    type_counts: dict[str, int] = {}
-    for c in chunks:
-        type_counts[c.content_type] = type_counts.get(c.content_type, 0) + 1
-
-    breakdown = ", ".join(f"{v} {k}" for k, v in type_counts.items())
-    return (
-        f"Ingested '{file_path}' → {count} chunks stored ({breakdown}). "
-        f"Texts: {len(doc.texts)}, Tables: {len(doc.tables)}, "
-        f"Pictures: {len(doc.pictures)}."
-    )
-
-
-@tool
-def ingest_document_with_enrichment(file_path: str, enrichment_level: str = "full") -> str:
-    """
-    Parse a document with enrichment models enabled and store it.
-
-    Use this for documents that contain:
-    - Code blocks (enrichment_level="code")
-    - Mathematical formulas (enrichment_level="code")
-    - Charts or figures (enrichment_level="image")
-    - Everything (enrichment_level="full")
-
-    Parameters
-    ----------
-    file_path        : Path or URL to the document.
-    enrichment_level : "minimal" | "code" | "image" | "full"
-    """
-    cfg_map = {
-        "minimal": EnrichmentConfig.minimal(),
-        "code":    EnrichmentConfig.for_code_agent(),
-        "image":   EnrichmentConfig.for_image_agent(),
-        "full":    EnrichmentConfig.full(),
-    }
-    cfg = cfg_map.get(enrichment_level, EnrichmentConfig.minimal())
-
-    try:
-        doc = parse(file_path, cfg)
-    except Exception as exc:
-        return f"Parsing failed for '{file_path}': {exc}"
-
-    chunks = chunk_document(doc, source_path=file_path)
-    count  = upsert_chunks(chunks)
-    return f"Ingested '{file_path}' with '{enrichment_level}' enrichment → {count} chunks."
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. Ingest sub-agent
-# ─────────────────────────────────────────────────────────────────────────────
-
-INGEST_AGENT: dict = {
-    "name": "ingest-agent",
-    "description": (
-        "Parses and ingests documents into the knowledge base. "
-        "Use when a user provides a file path or URL and needs it indexed "
-        "before questions can be answered. Supports PDF, DOCX, PPTX, "
-        "XLSX, CSV, XML, XBRL, and images."
-    ),
-    "system_prompt": (
-        "You are a document ingestion specialist. Your job is to:\n\n"
-        "1. Call ingest_document() for each file or URL the user provides.\n"
-        "2. If the document contains code, formulas, or figures, call "
-        "   ingest_document_with_enrichment() with the appropriate level.\n"
-        "3. Verify ingestion with get_store_stats().\n"
-        "4. Return a concise summary: what was ingested, how many chunks, "
-        "   and any content types detected.\n\n"
-        "Do NOT answer questions about the content — only ingest and summarise."
-    ),
-    "tools": [ingest_document, ingest_document_with_enrichment, get_store_stats],
-}
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Table tools
-# ─────────────────────────────────────────────────────────────────────────────
 
 @tool
 def retrieve_table_chunks(query: str, top_k: int = 4) -> str:
@@ -391,10 +257,9 @@ def build_all_subagents() -> tuple[list, list]:
     code_agent, sandbox = build_code_agent()
 
     subagents = [
-        INGEST_AGENT,
         TABLE_AGENT,
         IMAGE_AGENT,
-        code_agent,        # CompiledSubAgent
+        code_agent,
     ]
 
     resources = [sandbox]  # Will be stopped in agent.py finally block

@@ -13,7 +13,6 @@ dependencies = [
     "docling>=2.0.0",
     "docling-core[chunking]>=2.0.0",
     "qdrant-client>=1.10.0",
-    "langchain-qdrant>=0.2.0",
     "langchain-huggingface>=0.1.0",
     "sentence-transformers>=3.0.0",
     "docker>=7.0.0",
